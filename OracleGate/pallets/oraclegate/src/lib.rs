@@ -42,24 +42,6 @@ pub mod pallet {
         T::AccountId,
     >;
 
-    //Users/kofiotuo/CLionProjects/polkadot/spec_json.json
-    // ./target/release/parachain-oraclegate-node build-spec --disable-default-bootnode > plain-parachain-chainspec.json
-    //./target/release/parachain-oraclegate-node build-spec --chain plain-parachain-chainspec.json --disable-default-bootnode --raw > raw-parachain-chainspec.json
-    ///
-    /* ./target/release/parachain-oraclegate-node \
-    --alice \
-     --collator \
-     --force-authoring \
-     --chain raw-parachain-chainspec.json \
-     --base-path /tmp/parachain/alice \
-     --port 40333 \
-     --ws-port 8844 \
-     -- \
-     --execution wasm \
-     --chain /Users/kofiotuo/CLionProjects/polkadot/spec_json.json \
-     --port 30343 \
-     --ws-port 9977
-    */
     #[pallet::storage]
     #[pallet::getter(fn total_nft)]
     pub type TotalNft<T> = StorageValue<_, u32, ValueQuery>;
