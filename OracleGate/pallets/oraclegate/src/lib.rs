@@ -16,90 +16,149 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
-	use frame_system::pallet_prelude::*;
+    use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
+    use frame_system::pallet_prelude::*;
+    use scale_info::prelude::vec::Vec;
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-	}
+    /// Configure the pallet by specifying the parameters and types on which it depends.
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        /// Because this pallet emits events, it depends on the runtime's definition of an event.
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+    }
 
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+    #[pallet::pallet]
+    #[pallet::generate_store(pub (super) trait Store)]
+    #[pallet::without_storage_info]
+    pub struct Pallet<T>(_);
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
-	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+    // The pallet's runtime storage items.
+    #[pallet::storage]
+    #[pallet::getter(fn get_item)]
+    pub(super) type Items<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        CommodityId<T>,
+        T::AccountId,
+    >;
 
-	// Pallets use events to inform users when important changes are made.
-	// https://docs.substrate.io/v3/runtime/events-and-errors
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
-	}
+    #[pallet::storage]
+    #[pallet::getter(fn total_nft)]
+    pub type TotalNft<T> = StorageValue<_, u32, ValueQuery>;
 
-	// Errors inform users that something went wrong.
-	#[pallet::error]
-	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
-	}
+    #[pallet::storage]
+    #[pallet::getter(fn commodities_for_account)]
+    /// A mapping from an account to a list
+    /// of all of the commodities of this type that are owned by it.
+    pub(super) type CommoditiesForAccount<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        Vec<CommodityId<T>>,
+        ValueQuery
+    >;
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    pub type CommodityId<T> = <T as frame_system::Config>::Hash;
 
-	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-	// These functions materialize as "extrinsics", which are often compared to transactions.
-	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::weight(Weight::from_ref_time(10_000) + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResultWithPostInfo {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/v3/runtime/origins
-			let who = ensure_signed(origin)?;
+    // Pallets use events to inform users when important changes are made.
+    // https://docs.substrate.io/v3/runtime/events-and-errors
+    #[pallet::event]
+    #[pallet::generate_deposit(pub (super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        Burned(T::AccountId, CommodityId<T>),
+        Minted(T::AccountId, CommodityId<T>),
+        Transferred {
+            item: CommodityId<T>,
+            from: T::AccountId,
+            to: T::AccountId,
+        },
+    }
 
-			// Update storage.
-			<Something<T>>::put(something);
+    // Errors inform users that something went wrong.
+    #[pallet::error]
+    pub enum Error<T> {
+        AlreadyExists,
+        DoesNotExist,
+        NotTheOwner,
+    }
 
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
-			// Return a successful DispatchResultWithPostInfo
-			Ok(().into())
-		}
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(Weight::from_ref_time(10_000) + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
+    // Dispatchable functions allows users to interact with the pallet and invoke state changes.
+    // These functions materialize as "extrinsics", which are often compared to transactions.
+    // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        /// Mint nft
+        #[pallet::weight(0)]
+        pub fn mint(origin: OriginFor<T>, item: CommodityId<T>, owner: T::AccountId) -> DispatchResultWithPostInfo {
+            // Check that the extrinsic was signed and get the signer.
+            // This function will return an error if the extrinsic is not signed.
+            // https://docs.substrate.io/v3/runtime/origins
+            let _who = ensure_signed(origin)?;
+            // ensure commodity doesn't already exist
+            ensure!(!Items::<T>::contains_key(item),Error::<T>::AlreadyExists);
+            // mint nft
+            TotalNft::<T>::mutate(|n| *n += 1);
+            Items::<T>::insert(item.clone(), owner.clone());
+            CommoditiesForAccount::<T>::mutate(&owner, |nfts| {
+                nfts.push(item.clone())
+            });
+            Self::deposit_event(Event::Minted(owner, item));
+            Ok(().into())
+        }
 
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(().into())
-				},
-			}
-		}
-	}
+        /// Burn nft
+        #[pallet::weight(0)]
+        pub fn burn(origin: OriginFor<T>, item: CommodityId<T>, owner: T::AccountId) -> DispatchResultWithPostInfo {
+            // Check that the extrinsic was signed and get the signer.
+            // This function will return an error if the extrinsic is not signed.
+            // https://docs.substrate.io/v3/runtime/origins
+            let _ = ensure_signed(origin)?;
+            // ensure commodity exists
+            ensure!(Items::<T>::contains_key(item),Error::<T>::DoesNotExist);
+            // ensure this is the owner
+            let nfts_owned = CommoditiesForAccount::<T>::get(&owner);
+            ensure!(nfts_owned.contains(&item),Error::<T>::NotTheOwner);
+            // burn nft
+            TotalNft::<T>::mutate(|n| *n -= 1);
+            Items::<T>::remove(item.clone());
+            CommoditiesForAccount::<T>::mutate(&owner, |nfts| {
+                let pos = nfts.iter().position(|i| i == &item).unwrap();
+                nfts.remove(pos);
+            });
+            Self::deposit_event(Event::Burned(owner, item));
+            Ok(().into())
+        }
+
+        /// Transfer nft
+        #[pallet::weight(0)]
+        pub fn transfer(origin: OriginFor<T>, item: CommodityId<T>, owner: T::AccountId, dest: T::AccountId) -> DispatchResultWithPostInfo {
+            // Check that the extrinsic was signed and get the signer.
+            // This function will return an error if the extrinsic is not signed.
+            // https://docs.substrate.io/v3/runtime/origins
+            let _ = ensure_signed(origin)?;
+            // ensure commodity exists
+            ensure!(Items::<T>::contains_key(item),Error::<T>::DoesNotExist);
+            // ensure this is the owner
+            let nfts_owned = CommoditiesForAccount::<T>::get(&owner);
+            ensure!(nfts_owned.contains(&item),Error::<T>::NotTheOwner);
+            // transfer to new owner
+            Items::<T>::insert(item.clone(), dest.clone());
+            CommoditiesForAccount::<T>::mutate(&owner, |nfts| {
+                let pos = nfts.iter().position(|i| i == &item).unwrap();
+                nfts.remove(pos);
+            });
+            CommoditiesForAccount::<T>::mutate(&owner, |nfts| {
+                nfts.push(item.clone())
+            });
+            Self::deposit_event(Event::Transferred {
+                item,
+                from: owner,
+                to: dest,
+            });
+            Ok(().into())
+        }
+    }
 }
